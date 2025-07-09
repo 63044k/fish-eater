@@ -747,10 +747,41 @@ function drawShark() {
     ctx.ellipse(0, 0, shark.width/2, shark.height/2, 0, 0, 2 * Math.PI);
     ctx.fill();
     
-    // Draw the shark's fin on top
+    // Draw the shark's dorsal fin on top (realistic swept-back shape)
     ctx.fillStyle = '#303030'; // Slightly darker gray
     ctx.beginPath();
-    ctx.ellipse(0, -shark.height/3, shark.width/4, shark.height/4, 0, 0, 2 * Math.PI);
+    // Create a swept-back fin shape
+    const finHeight = shark.height * 0.6; // Height of the fin
+    const finWidth = shark.width * 0.3; // Width of the fin base
+    const finTip = shark.height * 0.4; // How far the tip extends above the body
+    
+    // Start at the front of the fin base (leading edge)
+    ctx.moveTo(finWidth/2, -shark.height/3);
+    // Draw curved leading edge sweeping up and back to the tip
+    ctx.quadraticCurveTo(finWidth/4, -shark.height/3 - finTip * 0.8, -finWidth/3, -shark.height/3 - finTip);
+    // Draw straight trailing edge back down to the rear of the fin base
+    ctx.lineTo(-finWidth/2, -shark.height/3);
+    // Close the fin shape
+    ctx.closePath();
+    ctx.fill();
+    
+    // Draw the shark's pectoral fin (side fin)
+    ctx.fillStyle = '#303030'; // Same darker gray as dorsal fin
+    ctx.beginPath();
+    // Create a swept-back pectoral fin shape (positioned on the side)
+    const pectoralFinLength = shark.width * 0.25; // Length of the pectoral fin
+    const pectoralFinWidth = shark.height * 0.3; // Width of the fin base
+    const pectoralFinOffset = shark.width * 0.1; // How far forward from center
+    
+    // Start at the front of the pectoral fin base (leading edge)
+    ctx.moveTo(pectoralFinOffset, shark.height/4);
+    // Draw curved leading edge sweeping back and out
+    ctx.quadraticCurveTo(pectoralFinOffset - pectoralFinLength * 0.3, shark.height/4 + pectoralFinWidth * 0.7, 
+                        pectoralFinOffset - pectoralFinLength, shark.height/4 + pectoralFinWidth);
+    // Draw straight trailing edge back to the rear of the fin base
+    ctx.lineTo(pectoralFinOffset - pectoralFinLength * 0.6, shark.height/4);
+    // Close the pectoral fin shape
+    ctx.closePath();
     ctx.fill();
     
     // Draw the shark's tail
