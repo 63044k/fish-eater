@@ -784,25 +784,32 @@ function drawShark() {
     ctx.closePath();
     ctx.fill();
     
-    // Draw the shark's tail
+    // Draw the shark's tail (scaled with growth)
     ctx.fillStyle = '#404040';
     ctx.beginPath();
+    const tailLength = shark.width * 0.19; // Scale tail length with shark width
+    const tailHeight = shark.height * 0.25; // Scale tail height with shark height
     ctx.moveTo(-shark.width/2, 0);
-    ctx.lineTo(-shark.width/2 - 15, -10);
-    ctx.lineTo(-shark.width/2 - 15, 10);
+    ctx.lineTo(-shark.width/2 - tailLength, -tailHeight);
+    ctx.lineTo(-shark.width/2 - tailLength, tailHeight);
     ctx.closePath();
     ctx.fill();
     
-    // Draw the shark's eye
+    // Draw the shark's eye (scaled with growth)
+    const eyeSize = shark.height * 0.1; // Scale eye size with shark height
+    const eyeOffset = shark.width * 0.25; // Scale eye position with shark width
+    const eyeVerticalOffset = shark.height * 0.125; // Scale vertical position
+    
     ctx.fillStyle = 'white';
     ctx.beginPath();
-    ctx.arc(shark.width/4, -5, 4, 0, 2 * Math.PI);
+    ctx.arc(eyeOffset, -eyeVerticalOffset, eyeSize, 0, 2 * Math.PI);
     ctx.fill();
     
-    // Draw the pupil
+    // Draw the pupil (scaled with growth)
+    const pupilSize = eyeSize * 0.5; // Pupil is half the eye size
     ctx.fillStyle = 'black';
     ctx.beginPath();
-    ctx.arc(shark.width/4, -5, 2, 0, 2 * Math.PI);
+    ctx.arc(eyeOffset, -eyeVerticalOffset, pupilSize, 0, 2 * Math.PI);
     ctx.fill();
     
     // Restore the drawing state
