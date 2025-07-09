@@ -37,8 +37,11 @@ const world = {
 const shark = {
     x: 0,               // Will be set to center X
     y: 0,               // Will be set to center Y  
-    width: 80,
-    height: 40,
+    width: 80,          // Base width
+    height: 40,         // Base height
+    baseWidth: 80,      // Original width for growth calculations
+    baseHeight: 40,     // Original height for growth calculations
+    growthFactor: 1.0,  // Current growth multiplier
     speed: 2,           // Reduced from 4 to 2 for better control
     direction: 0,       // Angle in degrees
     targetX: 0,         // Mouse target position
@@ -61,6 +64,13 @@ const generatedChunks = new Set(); // Track which chunks have been generated
 const fishPieces = [];
 const fishDensity = 0.0005; // Reduced from 0.001 to prevent overcrowding
 const fishGeneratedChunks = new Set(); // Track which chunks have fish generated
+
+// Game stats for fish eating
+const gameStats = {
+    fishEaten: 0,
+    slowFishEaten: 0,
+    fastFishEaten: 0
+};
 
 // Function to get chunk coordinates for a world position
 function getChunkCoords(worldX, worldY) {
@@ -217,11 +227,19 @@ function initializeGame() {
     world.surfaceY = world.skyHeight;
     world.bottomY = world.surfaceY + world.oceanDepth;
     
-    // Place shark in center of screen
+    // Place shark in center of screen and reset growth
     shark.x = dims.width / 2;
     shark.y = dims.height / 2;
     shark.targetX = shark.x;
     shark.targetY = shark.y;
+    shark.growthFactor = 1.0; // Reset growth to base size
+    shark.width = shark.baseWidth;
+    shark.height = shark.baseHeight;
+    
+    // Reset game stats
+    gameStats.fishEaten = 0;
+    gameStats.slowFishEaten = 0;
+    gameStats.fastFishEaten = 0;
     
     mouse.x = dims.width / 2;
     mouse.y = dims.height / 2;
@@ -441,13 +459,6 @@ function updateFish() {
     });
 }
 
-// Game stats for fish eating
-const gameStats = {
-    fishEaten: 0,
-    slowFishEaten: 0,
-    fastFishEaten: 0
-};
-
 // Function to check if shark can eat fish and handle eating
 function updateFishEating() {
     // Calculate shark's center position in world coordinates
@@ -477,8 +488,9 @@ function updateFishEating() {
         mouthWorldY = sharkCenterWorldY + Math.sin(angle) * mouthDistance; // Full distance, not scaled
     }
     
-    // Check for fish within eating range
-    const eatRadius = 30; // Increased radius for more reliable eating
+    // Check for fish within eating range (scales with shark size)
+    const baseEatRadius = 30; // Base eating radius
+    const eatRadius = baseEatRadius * shark.growthFactor; // Scale with shark size
     
     for (let i = fishPieces.length - 1; i >= 0; i--) {
         const fish = fishPieces[i];
@@ -500,15 +512,28 @@ function handleFishEaten(fish, fishIndex) {
     // Update game statistics
     gameStats.fishEaten++;
     
-    // Track different types of fish eaten
+    // Calculate growth amount based on fish size and type
+    let growthAmount;
     if (fish.color === '#FFD700') {
+        // Slow fish (larger) provide more growth
         gameStats.slowFishEaten++;
+        growthAmount = 0.02 + (fish.size / 500); // Base 0.02 + size-based bonus
         console.log(`🦈 Ate a slow fish! Total slow fish: ${gameStats.slowFishEaten}`);
     } else {
+        // Fast fish (smaller) provide less growth but still some
         gameStats.fastFishEaten++;
+        growthAmount = 0.015 + (fish.size / 600); // Slightly less growth
         console.log(`🦈 Ate a fast fish! Total fast fish: ${gameStats.fastFishEaten}`);
     }
     
+    // Apply growth to shark
+    shark.growthFactor += growthAmount;
+    
+    // Update shark dimensions based on growth factor
+    shark.width = shark.baseWidth * shark.growthFactor;
+    shark.height = shark.baseHeight * shark.growthFactor;
+    
+    console.log(`🦈 Shark grew! Growth factor: ${shark.growthFactor.toFixed(3)}, Size: ${shark.width.toFixed(1)}x${shark.height.toFixed(1)}`);
     console.log(`🦈 Total fish eaten: ${gameStats.fishEaten}`);
     
     // Remove the fish from the array
@@ -518,8 +543,7 @@ function handleFishEaten(fish, fishIndex) {
     // - Particle effects
     // - Sound effects
     // - Score increases
-    // - Shark growth
-    // - Special abilities
+    // - Special abilities based on size
 }
 
 // Function to draw a target where the mouse is
@@ -821,15 +845,18 @@ function drawDebugMouth() {
     const mouthScreenX = mouthWorldX + world.offsetX;
     const mouthScreenY = mouthWorldY + world.offsetY;
     
-    // Draw mouth debug circle
+    // Draw mouth debug circle (scales with shark size)
     const dims = getGameDimensions();
     if (mouthScreenX >= -50 && mouthScreenX <= dims.width + 50 && 
         mouthScreenY >= -50 && mouthScreenY <= dims.height + 50) {
+        const baseEatRadius = 30; // Base eating radius
+        const eatRadius = baseEatRadius * shark.growthFactor; // Scale with shark size
+        
         ctx.save();
         ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(mouthScreenX, mouthScreenY, 30, 0, 2 * Math.PI); // 30 = eatRadius
+        ctx.arc(mouthScreenX, mouthScreenY, eatRadius, 0, 2 * Math.PI);
         ctx.stroke();
         
         // Draw center dot
@@ -843,24 +870,30 @@ function drawDebugMouth() {
 
 // Main game loop - this runs continuously to update and draw the game
 function gameLoop() {
-    const dims = getGameDimensions();
-    
-    // Clear the screen
-    ctx.clearRect(0, 0, dims.width, dims.height);
-    
-    // Update and draw everything in order
-    updateFish();
-    updateWorld();
-    updateFishEating();
-    drawBackground();
-    drawSeaweed();
-    drawFish();
-    drawShark();
-    drawDebugMouth(); // Temporary debug visualization
-    drawMouseTarget();
-    
-    // Call this function again in the next frame
-    requestAnimationFrame(gameLoop);
+    try {
+        const dims = getGameDimensions();
+        
+        // Clear the screen
+        ctx.clearRect(0, 0, dims.width, dims.height);
+        
+        // Update and draw everything in order
+        updateFish();
+        updateWorld();
+        updateFishEating();
+        drawBackground();
+        drawSeaweed();
+        drawFish();
+        drawShark();
+        drawDebugMouth(); // Temporary debug visualization
+        drawMouseTarget();
+        
+        // Call this function again in the next frame
+        requestAnimationFrame(gameLoop);
+    } catch (error) {
+        console.error('Game loop error:', error);
+        // Try to restart the game loop after a brief delay
+        setTimeout(() => requestAnimationFrame(gameLoop), 100);
+    }
 }
 
 // Handle window resize
@@ -869,6 +902,15 @@ window.addEventListener('resize', function() {
     initializeGame(); // Reinitialize positions for new dimensions
 });
 
-// Start the game!
-console.log("🦈 Infinite Ocean Adventure Starting! Move your mouse to explore the depths!");
-gameLoop();
+// Initialize the game when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Make sure canvas is ready
+    if (!canvas || !ctx) {
+        console.error('Canvas or context not available');
+        return;
+    }
+    
+    // Start the game!
+    console.log("🦈 Infinite Ocean Adventure Starting! Move your mouse to explore the depths!");
+    gameLoop();
+});
