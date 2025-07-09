@@ -260,6 +260,13 @@ function initializeGame() {
 // Call initialization
 initializeGame();
 
+// Touch tracking state
+const touch = {
+    isActive: false,
+    x: 0,
+    y: 0
+};
+
 // Function to update target position from either mouse or touch
 function updateTargetPosition(clientX, clientY) {
     // Get the canvas position on the page
@@ -277,40 +284,59 @@ function updateTargetPosition(clientX, clientY) {
 
 // Listen for mouse movement (desktop)
 canvas.addEventListener('mousemove', function(event) {
-    updateTargetPosition(event.clientX, event.clientY);
+    if (!touch.isActive) { // Only respond to mouse if touch is not active
+        updateTargetPosition(event.clientX, event.clientY);
+    }
 });
 
 // Listen for mouse leaving the canvas (desktop)
 canvas.addEventListener('mouseleave', function(event) {
-    mouse.isOnScreen = false;
+    if (!touch.isActive) { // Only respond to mouse if touch is not active
+        mouse.isOnScreen = false;
+    }
 });
 
 // Listen for mouse entering the canvas (desktop)
 canvas.addEventListener('mouseenter', function(event) {
-    mouse.isOnScreen = true;
+    if (!touch.isActive) { // Only respond to mouse if touch is not active
+        mouse.isOnScreen = true;
+    }
 });
 
-// Listen for touch events (mobile)
+// Listen for touch events (mobile) - continuous tracking
 canvas.addEventListener('touchstart', function(event) {
     event.preventDefault(); // Prevent scrolling
     if (event.touches.length > 0) {
-        const touch = event.touches[0];
-        updateTargetPosition(touch.clientX, touch.clientY);
+        const touchEvent = event.touches[0];
+        touch.isActive = true;
+        touch.x = touchEvent.clientX;
+        touch.y = touchEvent.clientY;
+        updateTargetPosition(touchEvent.clientX, touchEvent.clientY);
     }
 });
 
 canvas.addEventListener('touchmove', function(event) {
     event.preventDefault(); // Prevent scrolling
-    if (event.touches.length > 0) {
-        const touch = event.touches[0];
-        updateTargetPosition(touch.clientX, touch.clientY);
+    if (event.touches.length > 0 && touch.isActive) {
+        const touchEvent = event.touches[0];
+        touch.x = touchEvent.clientX;
+        touch.y = touchEvent.clientY;
+        updateTargetPosition(touchEvent.clientX, touchEvent.clientY);
     }
 });
 
 canvas.addEventListener('touchend', function(event) {
     event.preventDefault();
-    // Keep the shark target where it was - don't disable on touch end
-    // This allows for tap-to-move gameplay
+    if (event.touches.length === 0) {
+        touch.isActive = false;
+        // Keep the shark target where it was - don't disable on touch end
+        // This allows the shark to continue moving to the last touch position
+    }
+});
+
+canvas.addEventListener('touchcancel', function(event) {
+    event.preventDefault();
+    touch.isActive = false;
 });
 
 // Function to update world position based on shark movement
