@@ -1,0 +1,20 @@
+/* Reset and basic styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: #000;
+    overflow: hidden; /* Hide scrollbars */
+    width: 100vw;
+    height: 100vh;
+}
+
+#gameCanvas {
+    display: block;
+    background: linear-gradient(45deg, #006994, #0080b8, #0099cc);
+    cursor: none; /* Hide the mouse cursor for more immersion */
+}
