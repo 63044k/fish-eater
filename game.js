@@ -374,13 +374,21 @@ function updateTargetPosition(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     
     // Calculate position relative to the canvas
-    mouse.x = clientX - rect.left;
-    mouse.y = clientY - rect.top;
-    mouse.isOnScreen = true;
+    const newX = clientX - rect.left;
+    const newY = clientY - rect.top;
     
-    // Set shark target
-    shark.targetX = mouse.x;
-    shark.targetY = mouse.y;
+    // Ensure coordinates are within canvas bounds
+    if (newX >= 0 && newX <= rect.width && newY >= 0 && newY <= rect.height) {
+        mouse.x = newX;
+        mouse.y = newY;
+        mouse.isOnScreen = true;
+        
+        // Set shark target
+        shark.targetX = mouse.x;
+        shark.targetY = mouse.y;
+        
+        console.log('Target updated:', mouse.x, mouse.y); // Debug log
+    }
 }
 
 // Listen for mouse movement (desktop)
@@ -413,8 +421,9 @@ canvas.addEventListener('touchstart', function(event) {
         touch.x = touchEvent.clientX;
         touch.y = touchEvent.clientY;
         updateTargetPosition(touchEvent.clientX, touchEvent.clientY);
+        console.log('Touch start:', touchEvent.clientX, touchEvent.clientY); // Debug log
     }
-});
+}, { passive: false });
 
 canvas.addEventListener('touchmove', function(event) {
     event.preventDefault(); // Prevent scrolling
@@ -423,22 +432,44 @@ canvas.addEventListener('touchmove', function(event) {
         touch.x = touchEvent.clientX;
         touch.y = touchEvent.clientY;
         updateTargetPosition(touchEvent.clientX, touchEvent.clientY);
+        console.log('Touch move:', touchEvent.clientX, touchEvent.clientY); // Debug log
     }
-});
+}, { passive: false });
 
 canvas.addEventListener('touchend', function(event) {
     event.preventDefault();
     if (event.touches.length === 0) {
         touch.isActive = false;
+        console.log('Touch end'); // Debug log
         // Keep the shark target where it was - don't disable on touch end
         // This allows the shark to continue moving to the last touch position
     }
-});
+}, { passive: false });
 
 canvas.addEventListener('touchcancel', function(event) {
     event.preventDefault();
     touch.isActive = false;
-});
+    console.log('Touch cancel'); // Debug log
+}, { passive: false });
+
+// Additional touch event handling for better mobile support
+document.addEventListener('touchstart', function(event) {
+    if (event.target === canvas) {
+        event.preventDefault();
+    }
+}, { passive: false });
+
+document.addEventListener('touchmove', function(event) {
+    if (event.target === canvas) {
+        event.preventDefault();
+    }
+}, { passive: false });
+
+document.addEventListener('touchend', function(event) {
+    if (event.target === canvas) {
+        event.preventDefault();
+    }
+}, { passive: false });
 
 // Function to update world position based on shark movement
 function updateWorld() {
@@ -709,11 +740,16 @@ function handleFishEaten(fish, fishIndex) {
 
 // Function to draw a target where the mouse is
 function drawMouseTarget() {
-    // Only draw target if mouse is on screen
-    if (!mouse.isOnScreen) return;
+    // Only draw target if mouse is on screen or touch is active
+    if (!mouse.isOnScreen && !touch.isActive) return;
+    
+    // Use different colors for touch vs mouse
+    const isTouch = touch.isActive;
+    const primaryColor = isTouch ? 'rgba(0, 255, 0, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+    const secondaryColor = isTouch ? 'rgba(0, 200, 0, 0.8)' : 'rgba(255, 50, 50, 0.8)';
     
     // Draw a much more visible crosshair
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.strokeStyle = primaryColor;
     ctx.lineWidth = 3;
     
     // Outer crosshair
@@ -725,7 +761,7 @@ function drawMouseTarget() {
     ctx.stroke();
     
     // Inner crosshair with different color
-    ctx.strokeStyle = 'rgba(255, 50, 50, 0.8)'; // Red center
+    ctx.strokeStyle = secondaryColor;
     ctx.lineWidth = 2;
     
     ctx.beginPath();
@@ -736,10 +772,19 @@ function drawMouseTarget() {
     ctx.stroke();
     
     // Center dot
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fillStyle = primaryColor;
     ctx.beginPath();
     ctx.arc(mouse.x, mouse.y, 2, 0, 2 * Math.PI);
     ctx.fill();
+    
+    // Add touch indicator
+    if (isTouch) {
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(mouse.x, mouse.y, 30, 0, 2 * Math.PI);
+        ctx.stroke();
+    }
 }
 function drawShark() {
     // Save the current drawing state
