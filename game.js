@@ -379,15 +379,24 @@ function updateTargetPosition(clientX, clientY) {
     
     // Ensure coordinates are within canvas bounds
     if (newX >= 0 && newX <= rect.width && newY >= 0 && newY <= rect.height) {
-        mouse.x = newX;
-        mouse.y = newY;
+        // For touch, apply some smoothing to reduce wild movements
+        if (touch.isActive) {
+            const smoothFactor = 0.8; // Adjust this value (0.5-0.9) for more/less smoothing
+            mouse.x = mouse.x * smoothFactor + newX * (1 - smoothFactor);
+            mouse.y = mouse.y * smoothFactor + newY * (1 - smoothFactor);
+        } else {
+            // For mouse, use direct positioning
+            mouse.x = newX;
+            mouse.y = newY;
+        }
+        
         mouse.isOnScreen = true;
         
         // Set shark target
         shark.targetX = mouse.x;
         shark.targetY = mouse.y;
         
-        console.log('Target updated:', mouse.x, mouse.y); // Debug log
+        console.log('Target updated:', mouse.x.toFixed(1), mouse.y.toFixed(1), 'Touch:', touch.isActive); // Debug log
     }
 }
 
@@ -475,8 +484,8 @@ document.addEventListener('touchend', function(event) {
 function updateWorld() {
     const dims = getGameDimensions();
     
-    // Only move if mouse is on screen
-    if (!mouse.isOnScreen) return;
+    // Only move if mouse is on screen OR touch is active
+    if (!mouse.isOnScreen && !touch.isActive) return;
     
     // Calculate how much the shark wants to move from center
     const deltaX = shark.targetX - shark.x;
@@ -486,19 +495,23 @@ function updateWorld() {
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
     
     // Create a dead zone around the shark - don't move if cursor is close to center
-    const deadZoneRadius = 50; // Increased from 5 to 50 pixels
+    const deadZoneRadius = touch.isActive ? 30 : 50; // Smaller dead zone for touch
     
     if (distance > deadZoneRadius) {
         // Calculate movement direction
-        const moveX = (deltaX / distance) * shark.speed;
-        const moveY = (deltaY / distance) * shark.speed;
+        const baseSpeed = touch.isActive ? shark.speed * 0.7 : shark.speed; // Slower for touch
+        const moveX = (deltaX / distance) * baseSpeed;
+        const moveY = (deltaY / distance) * baseSpeed;
         
         // Instead of moving shark, move the world in opposite direction
         world.offsetX -= moveX;
         world.offsetY -= moveY;
         
-        // Calculate direction shark is facing
-        shark.direction = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+        // Calculate direction shark is facing - ensure this always updates
+        const newDirection = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+        shark.direction = newDirection;
+        
+        console.log('Shark direction updated:', shark.direction.toFixed(1)); // Debug log
         
         // Calculate current depth in world coordinates
         const currentWorldY = shark.y - world.offsetY;
