@@ -5,16 +5,28 @@
     box-sizing: border-box;
 }
 
-body {
+html, body {
     font-family: 'Arial', sans-serif;
     background: #000;
     overflow: hidden; /* Hide scrollbars */
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
+    position: fixed; /* Prevent mobile scrolling */
+    touch-action: none; /* Disable touch gestures */
+    -webkit-user-select: none; /* Disable text selection */
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
 
 #gameCanvas {
     display: block;
     background: linear-gradient(45deg, #006994, #0080b8, #0099cc);
     cursor: none; /* Hide the mouse cursor for more immersion */
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    touch-action: none; /* Disable touch gestures on canvas */
 }

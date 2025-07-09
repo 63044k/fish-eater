@@ -260,29 +260,57 @@ function initializeGame() {
 // Call initialization
 initializeGame();
 
-// Listen for mouse movement
-canvas.addEventListener('mousemove', function(event) {
+// Function to update target position from either mouse or touch
+function updateTargetPosition(clientX, clientY) {
     // Get the canvas position on the page
     const rect = canvas.getBoundingClientRect();
     
-    // Calculate mouse position relative to the canvas
-    mouse.x = event.clientX - rect.left;
-    mouse.y = event.clientY - rect.top;
+    // Calculate position relative to the canvas
+    mouse.x = clientX - rect.left;
+    mouse.y = clientY - rect.top;
     mouse.isOnScreen = true;
     
-    // Set shark target (mouse position)
+    // Set shark target
     shark.targetX = mouse.x;
     shark.targetY = mouse.y;
+}
+
+// Listen for mouse movement (desktop)
+canvas.addEventListener('mousemove', function(event) {
+    updateTargetPosition(event.clientX, event.clientY);
 });
 
-// Listen for mouse leaving the canvas
+// Listen for mouse leaving the canvas (desktop)
 canvas.addEventListener('mouseleave', function(event) {
     mouse.isOnScreen = false;
 });
 
-// Listen for mouse entering the canvas
+// Listen for mouse entering the canvas (desktop)
 canvas.addEventListener('mouseenter', function(event) {
     mouse.isOnScreen = true;
+});
+
+// Listen for touch events (mobile)
+canvas.addEventListener('touchstart', function(event) {
+    event.preventDefault(); // Prevent scrolling
+    if (event.touches.length > 0) {
+        const touch = event.touches[0];
+        updateTargetPosition(touch.clientX, touch.clientY);
+    }
+});
+
+canvas.addEventListener('touchmove', function(event) {
+    event.preventDefault(); // Prevent scrolling
+    if (event.touches.length > 0) {
+        const touch = event.touches[0];
+        updateTargetPosition(touch.clientX, touch.clientY);
+    }
+});
+
+canvas.addEventListener('touchend', function(event) {
+    event.preventDefault();
+    // Keep the shark target where it was - don't disable on touch end
+    // This allows for tap-to-move gameplay
 });
 
 // Function to update world position based on shark movement
