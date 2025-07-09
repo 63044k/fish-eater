@@ -72,6 +72,107 @@ const gameStats = {
     fastFishEaten: 0
 };
 
+// Blood particles for fish eating effects
+const bloodParticles = [];
+
+// Function to create blood particles when a fish is eaten
+function createBloodEffect(fishX, fishY, fishSize) {
+    const particleCount = Math.min(12 + Math.floor(fishSize / 2), 20); // More particles for a cloud effect
+    
+    for (let i = 0; i < particleCount; i++) {
+        const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 1.0; // More random spread
+        const speed = 0.3 + Math.random() * 0.4; // Much slower speeds (was 1-3, now 0.3-0.7)
+        const size = 1.5 + Math.random() * 3; // Slightly smaller particles
+        
+        bloodParticles.push({
+            x: fishX + (Math.random() - 0.5) * fishSize * 0.5, // Start slightly spread out
+            y: fishY + (Math.random() - 0.5) * fishSize * 0.5,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: size,
+            maxSize: size,
+            life: 1.0, // Starts at full life
+            maxLife: 120 + Math.random() * 60, // Lives longer (2-3 seconds for cloud effect)
+            gravity: 0.005 + Math.random() * 0.005, // Much less gravity
+            fade: 0.99 - Math.random() * 0.01 // Slower fade
+        });
+    }
+}
+
+// Function to update blood particles
+function updateBloodParticles() {
+    for (let i = bloodParticles.length - 1; i >= 0; i--) {
+        const particle = bloodParticles[i];
+        
+        // Update position
+        particle.x += particle.vx;
+        particle.y += particle.vy;
+        
+        // Apply gentle gravity (makes particles sink very slowly in water)
+        particle.vy += particle.gravity;
+        
+        // Apply stronger water resistance for cloud-like drift
+        particle.vx *= 0.995; // Very gentle slowdown
+        particle.vy *= 0.995;
+        
+        // Add subtle random drift for organic cloud movement
+        particle.vx += (Math.random() - 0.5) * 0.02;
+        particle.vy += (Math.random() - 0.5) * 0.02;
+        
+        // Reduce life
+        particle.life -= 1.0 / particle.maxLife;
+        
+        // Particles grow slightly at first, then shrink (cloud expansion effect)
+        const lifeProgress = 1 - particle.life;
+        if (lifeProgress < 0.3) {
+            // Expand phase (first 30% of life)
+            particle.size = particle.maxSize * (1 + lifeProgress * 0.5);
+        } else {
+            // Shrink phase (remaining 70% of life)
+            const shrinkProgress = (lifeProgress - 0.3) / 0.7;
+            particle.size = particle.maxSize * 1.15 * (1 - shrinkProgress);
+        }
+        
+        // Remove dead particles
+        if (particle.life <= 0) {
+            bloodParticles.splice(i, 1);
+        }
+    }
+}
+
+// Function to draw blood particles
+function drawBloodParticles() {
+    const dims = getGameDimensions();
+    
+    bloodParticles.forEach(particle => {
+        // Calculate particle position relative to world offset
+        const drawX = particle.x + world.offsetX;
+        const drawY = particle.y + world.offsetY;
+        
+        // Only draw if on screen (with some margin)
+        if (drawX > -20 && drawX < dims.width + 20 && drawY > -20 && drawY < dims.height + 20) {
+            ctx.save();
+            
+            // Use a harmonious red color that fits the ocean theme
+            const alpha = particle.life * 0.8; // Fade out over time
+            ctx.fillStyle = `rgba(220, 80, 80, ${alpha})`; // Soft coral red
+            
+            // Draw particle as a circle
+            ctx.beginPath();
+            ctx.arc(drawX, drawY, particle.size, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Add a subtle glow effect for cartoon style
+            ctx.fillStyle = `rgba(255, 120, 120, ${alpha * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(drawX, drawY, particle.size * 1.5, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+    });
+}
+
 // Function to get chunk coordinates for a world position
 function getChunkCoords(worldX, worldY) {
     const chunkSize = 800; // Size of each seaweed chunk
@@ -563,6 +664,9 @@ function updateFishEating() {
 
 // Function to handle when a fish is eaten
 function handleFishEaten(fish, fishIndex) {
+    // Create blood effect at fish position
+    createBloodEffect(fish.x, fish.y, fish.size);
+    
     // Update game statistics
     gameStats.fishEaten++;
     
@@ -589,6 +693,9 @@ function handleFishEaten(fish, fishIndex) {
     
     console.log(`🦈 Shark grew! Growth factor: ${shark.growthFactor.toFixed(3)}, Size: ${shark.width.toFixed(1)}x${shark.height.toFixed(1)}`);
     console.log(`🦈 Total fish eaten: ${gameStats.fishEaten}`);
+    
+    // Create blood effect at fish position
+    createBloodEffect(fish.x, fish.y, fish.size);
     
     // Remove the fish from the array
     fishPieces.splice(fishIndex, 1);
@@ -934,12 +1041,14 @@ function gameLoop() {
         updateFish();
         updateWorld();
         updateFishEating();
+        updateBloodParticles();
         drawBackground();
         drawSeaweed();
         drawFish();
         drawShark();
         drawDebugMouth(); // Temporary debug visualization
         drawMouseTarget();
+        drawBloodParticles();
         
         // Call this function again in the next frame
         requestAnimationFrame(gameLoop);
