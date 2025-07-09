@@ -72,6 +72,11 @@ const gameStats = {
     fastFishEaten: 0
 };
 
+// Debug settings
+const debugSettings = {
+    showMouthPosition: false // Set to true to show mouth debug visualization
+};
+
 // Blood particles for fish eating effects
 const bloodParticles = [];
 
@@ -948,8 +953,11 @@ function drawFish() {
     });
 }
 
-// Debug function to visualize mouth position (temporary)
+// Debug function to visualize mouth position (can be enabled/disabled)
 function drawDebugMouth() {
+    // Only draw if debug setting is enabled
+    if (!debugSettings.showMouthPosition) return;
+    
     // Calculate shark's center position in world coordinates
     const sharkCenterWorldX = (shark.x + shark.width/2) - world.offsetX;
     const sharkCenterWorldY = (shark.y + shark.height/2) - world.offsetY;
@@ -1017,7 +1025,7 @@ function gameLoop() {
         drawSeaweed();
         drawFish();
         drawShark();
-        drawDebugMouth(); // Temporary debug visualization
+        drawDebugMouth(); // Optional debug visualization (controlled by debugSettings.showMouthPosition)
         drawMouseTarget();
         drawBloodParticles();
         
