@@ -361,131 +361,62 @@ function initializeGame() {
 // Call initialization
 initializeGame();
 
-// Touch tracking state
-const touch = {
-    isActive: false,
-    x: 0,
-    y: 0
-};
-
 // Function to update target position from either mouse or touch
 function updateTargetPosition(clientX, clientY) {
     // Get the canvas position on the page
     const rect = canvas.getBoundingClientRect();
     
     // Calculate position relative to the canvas
-    const newX = clientX - rect.left;
-    const newY = clientY - rect.top;
+    mouse.x = clientX - rect.left;
+    mouse.y = clientY - rect.top;
+    mouse.isOnScreen = true;
     
-    // Ensure coordinates are within canvas bounds
-    if (newX >= 0 && newX <= rect.width && newY >= 0 && newY <= rect.height) {
-        // For touch, apply some smoothing to reduce wild movements
-        if (touch.isActive) {
-            const smoothFactor = 0.8; // Adjust this value (0.5-0.9) for more/less smoothing
-            mouse.x = mouse.x * smoothFactor + newX * (1 - smoothFactor);
-            mouse.y = mouse.y * smoothFactor + newY * (1 - smoothFactor);
-        } else {
-            // For mouse, use direct positioning
-            mouse.x = newX;
-            mouse.y = newY;
-        }
-        
-        mouse.isOnScreen = true;
-        
-        // Set shark target
-        shark.targetX = mouse.x;
-        shark.targetY = mouse.y;
-        
-        console.log('Target updated:', mouse.x.toFixed(1), mouse.y.toFixed(1), 'Touch:', touch.isActive); // Debug log
-    }
+    // Set shark target
+    shark.targetX = mouse.x;
+    shark.targetY = mouse.y;
 }
 
 // Listen for mouse movement (desktop)
 canvas.addEventListener('mousemove', function(event) {
-    if (!touch.isActive) { // Only respond to mouse if touch is not active
-        updateTargetPosition(event.clientX, event.clientY);
-    }
+    updateTargetPosition(event.clientX, event.clientY);
 });
 
 // Listen for mouse leaving the canvas (desktop)
 canvas.addEventListener('mouseleave', function(event) {
-    if (!touch.isActive) { // Only respond to mouse if touch is not active
-        mouse.isOnScreen = false;
-    }
+    mouse.isOnScreen = false;
 });
 
 // Listen for mouse entering the canvas (desktop)
 canvas.addEventListener('mouseenter', function(event) {
-    if (!touch.isActive) { // Only respond to mouse if touch is not active
-        mouse.isOnScreen = true;
-    }
+    mouse.isOnScreen = true;
 });
 
-// Listen for touch events (mobile) - continuous tracking
+// Listen for touch events (mobile) - simple approach
 canvas.addEventListener('touchstart', function(event) {
-    event.preventDefault(); // Prevent scrolling
+    event.preventDefault();
     if (event.touches.length > 0) {
-        const touchEvent = event.touches[0];
-        touch.isActive = true;
-        touch.x = touchEvent.clientX;
-        touch.y = touchEvent.clientY;
-        updateTargetPosition(touchEvent.clientX, touchEvent.clientY);
-        console.log('Touch start:', touchEvent.clientX, touchEvent.clientY); // Debug log
+        updateTargetPosition(event.touches[0].clientX, event.touches[0].clientY);
     }
 }, { passive: false });
 
 canvas.addEventListener('touchmove', function(event) {
-    event.preventDefault(); // Prevent scrolling
-    if (event.touches.length > 0 && touch.isActive) {
-        const touchEvent = event.touches[0];
-        touch.x = touchEvent.clientX;
-        touch.y = touchEvent.clientY;
-        updateTargetPosition(touchEvent.clientX, touchEvent.clientY);
-        console.log('Touch move:', touchEvent.clientX, touchEvent.clientY); // Debug log
+    event.preventDefault();
+    if (event.touches.length > 0) {
+        updateTargetPosition(event.touches[0].clientX, event.touches[0].clientY);
     }
 }, { passive: false });
 
 canvas.addEventListener('touchend', function(event) {
     event.preventDefault();
-    if (event.touches.length === 0) {
-        touch.isActive = false;
-        console.log('Touch end'); // Debug log
-        // Keep the shark target where it was - don't disable on touch end
-        // This allows the shark to continue moving to the last touch position
-    }
-}, { passive: false });
-
-canvas.addEventListener('touchcancel', function(event) {
-    event.preventDefault();
-    touch.isActive = false;
-    console.log('Touch cancel'); // Debug log
-}, { passive: false });
-
-// Additional touch event handling for better mobile support
-document.addEventListener('touchstart', function(event) {
-    if (event.target === canvas) {
-        event.preventDefault();
-    }
-}, { passive: false });
-
-document.addEventListener('touchmove', function(event) {
-    if (event.target === canvas) {
-        event.preventDefault();
-    }
-}, { passive: false });
-
-document.addEventListener('touchend', function(event) {
-    if (event.target === canvas) {
-        event.preventDefault();
-    }
+    // Keep target where it was - shark continues moving to last position
 }, { passive: false });
 
 // Function to update world position based on shark movement
 function updateWorld() {
     const dims = getGameDimensions();
     
-    // Only move if mouse is on screen OR touch is active
-    if (!mouse.isOnScreen && !touch.isActive) return;
+    // Only move if mouse is on screen
+    if (!mouse.isOnScreen) return;
     
     // Calculate how much the shark wants to move from center
     const deltaX = shark.targetX - shark.x;
@@ -495,23 +426,19 @@ function updateWorld() {
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
     
     // Create a dead zone around the shark - don't move if cursor is close to center
-    const deadZoneRadius = touch.isActive ? 30 : 50; // Smaller dead zone for touch
+    const deadZoneRadius = 50;
     
     if (distance > deadZoneRadius) {
         // Calculate movement direction
-        const baseSpeed = touch.isActive ? shark.speed * 0.7 : shark.speed; // Slower for touch
-        const moveX = (deltaX / distance) * baseSpeed;
-        const moveY = (deltaY / distance) * baseSpeed;
+        const moveX = (deltaX / distance) * shark.speed;
+        const moveY = (deltaY / distance) * shark.speed;
         
         // Instead of moving shark, move the world in opposite direction
         world.offsetX -= moveX;
         world.offsetY -= moveY;
         
-        // Calculate direction shark is facing - ensure this always updates
-        const newDirection = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-        shark.direction = newDirection;
-        
-        console.log('Shark direction updated:', shark.direction.toFixed(1)); // Debug log
+        // Calculate direction shark is facing
+        shark.direction = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
         
         // Calculate current depth in world coordinates
         const currentWorldY = shark.y - world.offsetY;
@@ -753,16 +680,11 @@ function handleFishEaten(fish, fishIndex) {
 
 // Function to draw a target where the mouse is
 function drawMouseTarget() {
-    // Only draw target if mouse is on screen or touch is active
-    if (!mouse.isOnScreen && !touch.isActive) return;
-    
-    // Use different colors for touch vs mouse
-    const isTouch = touch.isActive;
-    const primaryColor = isTouch ? 'rgba(0, 255, 0, 0.9)' : 'rgba(255, 255, 255, 0.9)';
-    const secondaryColor = isTouch ? 'rgba(0, 200, 0, 0.8)' : 'rgba(255, 50, 50, 0.8)';
+    // Only draw target if mouse is on screen
+    if (!mouse.isOnScreen) return;
     
     // Draw a much more visible crosshair
-    ctx.strokeStyle = primaryColor;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.lineWidth = 3;
     
     // Outer crosshair
@@ -774,7 +696,7 @@ function drawMouseTarget() {
     ctx.stroke();
     
     // Inner crosshair with different color
-    ctx.strokeStyle = secondaryColor;
+    ctx.strokeStyle = 'rgba(255, 50, 50, 0.8)'; // Red center
     ctx.lineWidth = 2;
     
     ctx.beginPath();
@@ -785,19 +707,10 @@ function drawMouseTarget() {
     ctx.stroke();
     
     // Center dot
-    ctx.fillStyle = primaryColor;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.beginPath();
     ctx.arc(mouse.x, mouse.y, 2, 0, 2 * Math.PI);
     ctx.fill();
-    
-    // Add touch indicator
-    if (isTouch) {
-        ctx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(mouse.x, mouse.y, 30, 0, 2 * Math.PI);
-        ctx.stroke();
-    }
 }
 function drawShark() {
     // Save the current drawing state
