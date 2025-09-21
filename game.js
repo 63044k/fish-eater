@@ -81,6 +81,9 @@ const debugSettings = {
 // Blood particles for fish eating effects
 const bloodParticles = [];
 
+// Vomit particles for green fish eating effects
+const vomitParticles = [];
+
 // Function to create blood particles when a fish is eaten
 function createBloodEffect(fishX, fishY, fishSize) {
     const particleCount = Math.min(12 + Math.floor(fishSize / 2), 20); // More particles for a cloud effect
@@ -144,6 +147,175 @@ function updateBloodParticles() {
             bloodParticles.splice(i, 1);
         }
     }
+}
+
+// Function to create vomit particles when a green fish is eaten
+function createVomitEffect(sharkX, sharkY, sharkDirection) {
+    // Create a vomit surge that emits particles over time and follows the shark
+    const surgeDuration = 90; // Frames (1.5 seconds at 60fps)
+    
+    // Create a vomit surge object that will generate particles over time
+    vomitParticles.push({
+        type: 'surge',
+        timeLeft: surgeDuration,
+        maxTime: surgeDuration,
+        framesSinceLastEmit: 0
+    });
+}
+
+// Function to update vomit particles
+function updateVomitParticles() {
+    for (let i = vomitParticles.length - 1; i >= 0; i--) {
+        const particle = vomitParticles[i];
+        
+        if (particle.type === 'surge') {
+            // Handle vomit surge emitter
+            particle.timeLeft--;
+            particle.framesSinceLastEmit++;
+            
+            // Emit new particles continuously during the surge
+            const emitRate = 3; // Emit every 3 frames for steady flow
+            if (particle.framesSinceLastEmit >= emitRate && particle.timeLeft > 0) {
+                // Calculate current shark mouth position and direction
+                const sharkCenterWorldX = (shark.x + shark.width/2) - world.offsetX;
+                const sharkCenterWorldY = (shark.y + shark.height/2) - world.offsetY;
+                
+                // Calculate shark's current facing direction
+                const angle = shark.direction * (Math.PI / 180);
+                const isSwimmingLeft = Math.abs(angle) > Math.PI / 2;
+                
+                // Calculate mouth position based on shark's current orientation
+                let mouthWorldX, mouthWorldY, vomitAngle;
+                const mouthDistance = shark.width * 0.4; // Distance from center to mouth
+                
+                if (isSwimmingLeft) {
+                    // When shark is flipped, mouth position calculation (same as eating function)
+                    const flippedAngle = Math.PI - angle;
+                    mouthWorldX = sharkCenterWorldX - Math.cos(flippedAngle) * mouthDistance;
+                    mouthWorldY = sharkCenterWorldY + Math.sin(flippedAngle) * mouthDistance;
+                    // Vomit direction: when swimming left, we want vomit to go in the original angle direction
+                    // which is the direction the shark is actually moving
+                    vomitAngle = angle;
+                } else {
+                    // Normal right-facing orientation - mouth at the front
+                    mouthWorldX = sharkCenterWorldX + Math.cos(angle) * mouthDistance;
+                    mouthWorldY = sharkCenterWorldY + Math.sin(angle) * mouthDistance;
+                    // Vomit direction should be the same as the shark's angle
+                    vomitAngle = angle;
+                }
+                
+                // Calculate surge strength (starts strong, weakens over time)
+                const surgeStrength = particle.timeLeft / particle.maxTime;
+                const particleCount = Math.floor(2 + surgeStrength * 3); // 2-5 particles per emit
+                
+                for (let j = 0; j < particleCount; j++) {
+                    // Create flowing particles with less spread than original spray
+                    const spreadAngle = vomitAngle + (Math.random() - 0.5) * 0.6; // Narrower spread
+                    const baseSpeed = 1.0 + surgeStrength * 2.0; // Speed varies with surge strength
+                    const speed = baseSpeed + Math.random() * 0.8;
+                    const size = 2 + Math.random() * 3;
+                    
+                    vomitParticles.push({
+                        type: 'particle',
+                        x: mouthWorldX + (Math.random() - 0.5) * 8, // Start from mouth position
+                        y: mouthWorldY + (Math.random() - 0.5) * 8,
+                        vx: Math.cos(spreadAngle) * speed,
+                        vy: Math.sin(spreadAngle) * speed,
+                        size: size,
+                        maxSize: size,
+                        life: 1.0,
+                        maxLife: 120 + Math.random() * 80, // Longer life for flow effect
+                        gravity: 0.015 + Math.random() * 0.01, // Gentler gravity for flow
+                        bounce: 0.2 + Math.random() * 0.15,
+                        hasBouncedOnce: false
+                    });
+                }
+                
+                particle.framesSinceLastEmit = 0;
+            }
+            
+            // Remove surge emitter when done
+            if (particle.timeLeft <= 0) {
+                vomitParticles.splice(i, 1);
+            }
+        } else {
+            // Handle individual vomit particles
+            // Update position
+            particle.x += particle.vx;
+            particle.y += particle.vy;
+            
+            // Apply gravity (vomit sinks)
+            particle.vy += particle.gravity;
+            
+            // Apply water resistance for flowing motion
+            particle.vx *= 0.995; // Very gentle resistance for smoother flow
+            particle.vy *= 0.998;
+            
+            // Bounce off ocean floor if enabled
+            const oceanFloor = world.bottomY;
+            if (particle.y > oceanFloor && !particle.hasBouncedOnce) {
+                particle.y = oceanFloor;
+                particle.vy = -particle.vy * particle.bounce;
+                particle.vx *= 0.7; // Lose some horizontal speed on bounce
+                particle.hasBouncedOnce = true;
+            }
+            
+            // Reduce life
+            particle.life -= 1.0 / particle.maxLife;
+            
+            // Particles maintain size longer, then gradually shrink
+            const lifeProgress = 1 - particle.life;
+            if (lifeProgress < 0.3) {
+                // Maintain size phase
+                particle.size = particle.maxSize;
+            } else {
+                // Gradual shrinking phase
+                const shrinkProgress = (lifeProgress - 0.3) / 0.7;
+                particle.size = particle.maxSize * (1 - shrinkProgress * 0.8);
+            }
+            
+            // Remove dead particles
+            if (particle.life <= 0) {
+                vomitParticles.splice(i, 1);
+            }
+        }
+    }
+}
+
+// Function to draw vomit particles
+function drawVomitParticles() {
+    const dims = getGameDimensions();
+    
+    vomitParticles.forEach(particle => {
+        // Only draw actual particles, not surge emitters
+        if (particle.type !== 'particle') return;
+        
+        // Calculate particle position relative to world offset
+        const drawX = particle.x + world.offsetX;
+        const drawY = particle.y + world.offsetY;
+        
+        // Only draw if on screen (with some margin)
+        if (drawX > -20 && drawX < dims.width + 20 && drawY > -20 && drawY < dims.height + 20) {
+            ctx.save();
+            
+            // Use a sickly green color for vomit
+            const alpha = particle.life * 0.9; // Fade out over time
+            ctx.fillStyle = `rgba(120, 180, 80, ${alpha})`; // Sickly green
+            
+            // Draw particle as a circle
+            ctx.beginPath();
+            ctx.arc(drawX, drawY, particle.size, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Add a subtle yellowish glow effect
+            ctx.fillStyle = `rgba(180, 200, 100, ${alpha * 0.4})`;
+            ctx.beginPath();
+            ctx.arc(drawX, drawY, particle.size * 1.3, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+    });
 }
 
 // Function to draw blood particles
@@ -224,7 +396,7 @@ function generateSeaweedChunk(chunkX, chunkY, chunkSize) {
 
             // Occasionally spawn a green lurker fish at this seaweed clump
             if (Math.random() < 0.12) { // ~12% of seaweed clumps get a green fish
-                const greenFishColor = '#2ecc40'; // Distinct green, not same as seaweed
+                const greenFishColor = '#75cc2eff'; // Distinct green, not same as seaweed
                 const homeX = x;
                 const homeY = y + 10; // Slightly below the top of the seaweed
                 fishPieces.push({
@@ -743,6 +915,11 @@ function handleFishEaten(fish, fishIndex) {
         gameStats.greenFishEaten++;
         growthAmount = -(0.05 + (fish.size / 100)); // Negative growth (weight loss)
         console.log(`🦈 Ate a green fish! Lost weight! Total green fish: ${gameStats.greenFishEaten}`);
+        
+        // Create vomit effect when eating green fish (shark gets sick!)
+        const sharkWorldX = shark.x - world.offsetX;
+        const sharkWorldY = shark.y - world.offsetY;
+        createVomitEffect(sharkWorldX, sharkWorldY, shark.direction);
     } else if (fish.color === '#FFD700') {
         // Slow fish (larger) provide more growth
         gameStats.slowFishEaten++;
@@ -1082,13 +1259,13 @@ function drawFish(type = 'normal') {
                 // Draw fish eye
                 ctx.fillStyle = 'red';
                 ctx.beginPath();
-                ctx.arc(fish.size * 0.3, -fish.size * 0.0, fish.size * 0.2, 0, 2 * Math.PI);
+                ctx.arc(fish.size * 0.35, -fish.size * 0.0, fish.size * 0.25, 0, 2 * Math.PI);
                 ctx.fill();
 
                 // Draw fish pupil
                 ctx.fillStyle = 'pink';
                 ctx.beginPath();
-                ctx.arc(fish.size * 0.3, -fish.size * 0.0, fish.size * 0.1, 0, 2 * Math.PI);
+                ctx.arc(fish.size * 0.35, -fish.size * 0.0, fish.size * 0.15, 0, 2 * Math.PI);
                 ctx.fill();
 
                 ctx.restore();
@@ -1226,6 +1403,7 @@ function gameLoop() {
         updateWorld();
         updateFishEating();
         updateBloodParticles();
+        updateVomitParticles();
         drawBackground();
         drawFish('green'); // Draw green fish first for layering
         drawSeaweed();
@@ -1234,6 +1412,7 @@ function gameLoop() {
         drawDebugMouth(); // Optional debug visualization (controlled by debugSettings.showMouthPosition)
         drawMouseTarget();
         drawBloodParticles();
+        drawVomitParticles();
         
         // Call this function again in the next frame
         requestAnimationFrame(gameLoop);
@@ -1259,6 +1438,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Start the game!
-    console.log("🦈 Infinite Ocean Adventure Starting! Move your mouse to explore the depths!");
+    console.log("🦈 Fish Eater! Move your shark to explore the depths!");
     gameLoop();
 });
