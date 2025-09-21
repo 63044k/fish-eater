@@ -692,7 +692,9 @@ function updateFish() {
             }
             
             // States: hiding, emerging, returning
-            const sharkDist = Math.sqrt(Math.pow(fish.x - sharkCenterWorldX, 2) + Math.pow(fish.y - sharkCenterWorldY, 2));
+            const sharkDist = Math.sqrt(Math.pow(fish.x - mouthWorldX, 2) + Math.pow(fish.y - mouthWorldY, 2));
+
+            let pmp = getProjectedMouthPosition(sharkDist/fish.speed);
             if (fish.state === 'hiding') {
                 // Stay at home, minimal movement
                 fish.vx = 0;
@@ -709,14 +711,15 @@ function updateFish() {
                 fish.y = fish.homeY;
             } else if (fish.state === 'emerging') {
                 // Move toward shark's mouth instead of center
-                const dx = mouthWorldX - fish.x;
-                const dy = mouthWorldY - fish.y;
+                const dx = pmp.x - fish.x;
+                const dy = pmp.y - fish.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist > 2) {
                     // Calculate speed burst based on emergence time
                     const timeSinceEmergence = (Date.now() - fish.emergenceTime) * 0.001; // Convert to seconds
                     const speedBurstPhase = timeSinceEmergence * 3.0; // Controls wave frequency
-                    const speedBurst = 1.0 + 0.2 * (Math.sin(speedBurstPhase) + 1) / 2; // 1.0 to 1.2 multiplier            
+                    let speedBurst = 1.0 + 0.2 * (Math.sin(speedBurstPhase) + 1) / 2; // 1.0 to 1.2 multiplier
+                    speedBurst += Math.max(0, (3 - timeSinceEmergence) / 3 * 0.3); // Extra burst for first 3 seconds
                     const finalSpeed = fish.speed * speedBurst;
                     
                     fish.vx = (dx / dist) * finalSpeed;
@@ -877,6 +880,46 @@ function updateFish() {
             fish.vy = -Math.abs(fish.vy); // Bounce up
         }
     });
+}
+
+// Function to calculate the projected position of the shark's mouth
+// based on its current direction and speed
+function getProjectedMouthPosition(timeAhead = 1.0) {
+    // Calculate shark's center position in world coordinates
+    const sharkCenterWorldX = (shark.x + shark.width/2) - world.offsetX;
+    const sharkCenterWorldY = (shark.y + shark.height/2) - world.offsetY;
+    
+    // Calculate shark's actual facing direction
+    const angle = shark.direction * (Math.PI / 180);
+    const isSwimmingLeft = Math.abs(angle) > Math.PI / 2;
+    
+    // Calculate shark's velocity components
+    const sharkVelX = Math.cos(angle) * shark.speed;
+    const sharkVelY = Math.sin(angle) * shark.speed;
+    
+    // Project shark center position forward in time
+    const projectedCenterX = sharkCenterWorldX + sharkVelX * timeAhead;
+    const projectedCenterY = sharkCenterWorldY + sharkVelY * timeAhead;
+    
+    // Calculate mouth position relative to projected center
+    const mouthDistance = shark.width * 0.4;
+    let projectedMouthX, projectedMouthY;
+    
+    if (isSwimmingLeft) {
+        const flippedAngle = Math.PI - angle;
+        projectedMouthX = projectedCenterX - Math.cos(flippedAngle) * mouthDistance;
+        projectedMouthY = projectedCenterY + Math.sin(flippedAngle) * mouthDistance;
+    } else {
+        projectedMouthX = projectedCenterX + Math.cos(angle) * mouthDistance;
+        projectedMouthY = projectedCenterY + Math.sin(angle) * mouthDistance;
+    }
+    
+    return {
+        x: projectedMouthX,
+        y: projectedMouthY,
+        centerX: projectedCenterX,
+        centerY: projectedCenterY
+    };
 }
 
 // Function to check if shark can eat fish and handle eating
