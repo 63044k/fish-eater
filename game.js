@@ -701,6 +701,8 @@ function updateFish() {
                 if (sharkDist < 120) {
                     fish.state = 'emerging';
                     fish.stateTimer = 0;
+                    // Record emergence time for speed burst calculation
+                    fish.emergenceTime = Date.now();
                 }
                 // Snap to home
                 fish.x = fish.homeX;
@@ -711,8 +713,14 @@ function updateFish() {
                 const dy = mouthWorldY - fish.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist > 2) {
-                    fish.vx = (dx / dist) * fish.speed * 0.7;
-                    fish.vy = (dy / dist) * fish.speed * 0.7;
+                    // Calculate speed burst based on emergence time
+                    const timeSinceEmergence = (Date.now() - fish.emergenceTime) * 0.001; // Convert to seconds
+                    const speedBurstPhase = timeSinceEmergence * 3.0; // Controls wave frequency
+                    const speedBurst = 1.0 + 0.2 * (Math.sin(speedBurstPhase) + 1) / 2; // 1.0 to 1.2 multiplier            
+                    const finalSpeed = fish.speed * speedBurst;
+                    
+                    fish.vx = (dx / dist) * finalSpeed;
+                    fish.vy = (dy / dist) * finalSpeed;
                 } else {
                     fish.vx = 0;
                     fish.vy = 0;
