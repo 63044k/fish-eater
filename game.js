@@ -69,7 +69,8 @@ const fishGeneratedChunks = new Set(); // Track which chunks have fish generated
 const gameStats = {
     fishEaten: 0,
     slowFishEaten: 0,
-    fastFishEaten: 0
+    fastFishEaten: 0,
+    greenFishEaten: 0
 };
 
 // Debug settings
@@ -737,7 +738,12 @@ function handleFishEaten(fish, fishIndex) {
     
     // Calculate growth amount based on fish size and type
     let growthAmount;
-    if (fish.color === '#FFD700') {
+    if (fish.type === 'green') {
+        // Green fish cause weight loss instead of growth
+        gameStats.greenFishEaten++;
+        growthAmount = -(0.05 + (fish.size / 100)); // Negative growth (weight loss)
+        console.log(`🦈 Ate a green fish! Lost weight! Total green fish: ${gameStats.greenFishEaten}`);
+    } else if (fish.color === '#FFD700') {
         // Slow fish (larger) provide more growth
         gameStats.slowFishEaten++;
         growthAmount = 0.02 + (fish.size / 500); // Base 0.02 + size-based bonus
@@ -752,11 +758,20 @@ function handleFishEaten(fish, fishIndex) {
     // Apply growth to shark
     shark.growthFactor += growthAmount;
     
+    // Ensure shark doesn't shrink below base size (minimum growth factor of 1.0)
+    if (shark.growthFactor < 1.0) {
+        shark.growthFactor = 1.0;
+    }
+    
     // Update shark dimensions based on growth factor
     shark.width = shark.baseWidth * shark.growthFactor;
     shark.height = shark.baseHeight * shark.growthFactor;
     
-    console.log(`🦈 Shark grew! Growth factor: ${shark.growthFactor.toFixed(3)}, Size: ${shark.width.toFixed(1)}x${shark.height.toFixed(1)}`);
+    if (fish.type === 'green') {
+        console.log(`🦈 Shark shrank! Growth factor: ${shark.growthFactor.toFixed(3)}, Size: ${shark.width.toFixed(1)}x${shark.height.toFixed(1)}`);
+    } else {
+        console.log(`🦈 Shark grew! Growth factor: ${shark.growthFactor.toFixed(3)}, Size: ${shark.width.toFixed(1)}x${shark.height.toFixed(1)}`);
+    }
     console.log(`🦈 Total fish eaten: ${gameStats.fishEaten}`);
     
     // Create blood effect at fish position
