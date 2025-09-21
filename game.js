@@ -220,6 +220,29 @@ function generateSeaweedChunk(chunkX, chunkY, chunkSize) {
                 speed: 0.02 + Math.random() * 0.03,
                 chunkKey: chunkKey
             });
+
+            // Occasionally spawn a green lurker fish at this seaweed clump
+            if (Math.random() < 0.12) { // ~12% of seaweed clumps get a green fish
+                const greenFishColor = '#2ecc40'; // Distinct green, not same as seaweed
+                const homeX = x;
+                const homeY = y + 10; // Slightly below the top of the seaweed
+                fishPieces.push({
+                    x: homeX,
+                    y: homeY,
+                    vx: 0,
+                    vy: 0,
+                    size: 11 + Math.random() * 5,
+                    speed: 1.3 + Math.random() * 0.4, // Similar to slow fish
+                    fleeDistance: 120 + Math.random() * 80, // Not used for green fish
+                    color: greenFishColor,
+                    chunkKey: chunkKey,
+                    type: 'green',
+                    homeX: homeX,
+                    homeY: homeY,
+                    state: 'hiding', // hiding | emerging | returning
+                    stateTimer: 0
+                });
+            }
         }
     }
 }
@@ -269,7 +292,8 @@ function generateFishChunk(chunkX, chunkY, chunkSize) {
                 speed: speed,
                 fleeDistance: 120 + Math.random() * 80, // Distance at which fish start fleeing
                 color: color,
-                chunkKey: chunkKey
+                chunkKey: chunkKey,
+                type: 'normal' // normal | green
             });
         }
     }
@@ -473,6 +497,71 @@ function updateFish() {
     const sharkWorldY = shark.y - world.offsetY;
     
     fishPieces.forEach(fish => {
+        // Green lurker fish custom behavior
+        if (fish.type === 'green') {
+            // States: hiding, emerging, returning
+            const sharkDist = Math.sqrt(Math.pow(fish.x - sharkWorldX, 2) + Math.pow(fish.y - sharkWorldY, 2));
+            if (fish.state === 'hiding') {
+                // Stay at home, minimal movement
+                fish.vx = 0;
+                fish.vy = 0;
+                // If shark is close, emerge
+                if (sharkDist < 120) {
+                    fish.state = 'emerging';
+                    fish.stateTimer = 0;
+                }
+                // Snap to home
+                fish.x = fish.homeX;
+                fish.y = fish.homeY;
+            } else if (fish.state === 'emerging') {
+                // Move toward shark
+                const dx = sharkWorldX - fish.x;
+                const dy = sharkWorldY - fish.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist > 2) {
+                    fish.vx = (dx / dist) * fish.speed * 0.7;
+                    fish.vy = (dy / dist) * fish.speed * 0.7;
+                } else {
+                    fish.vx = 0;
+                    fish.vy = 0;
+                }
+                // If too far from home, return
+                fish.stateTimer++;
+                const homeDist = Math.sqrt(Math.pow(fish.x - fish.homeX, 2) + Math.pow(fish.y - fish.homeY, 2));
+                if (homeDist > 800) {   // Optionally include timeer e.g. fish.stateTimer > 80
+                    fish.state = 'returning';
+                }
+            } else if (fish.state === 'returning') {
+                // Move back to home
+                const dx = fish.homeX - fish.x;
+                const dy = fish.homeY - fish.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist > 2) {
+                    fish.vx = (dx / dist) * fish.speed * 0.5;
+                    fish.vy = (dy / dist) * fish.speed * 0.5;
+                } else {
+                    fish.vx = 0;
+                    fish.vy = 0;
+                    fish.x = fish.homeX;
+                    fish.y = fish.homeY;
+                    fish.state = 'hiding';
+                }
+                // If shark comes close again, emerge
+                if (sharkDist < 120) {
+                    fish.state = 'emerging';
+                    fish.stateTimer = 0;
+                }
+            }
+            // Update position
+            fish.x += fish.vx;
+            fish.y += fish.vy;
+            // Keep within ocean bounds
+            const minY = world.surfaceY + 80;
+            const maxY = world.bottomY - 80;
+            if (fish.y < minY) { fish.y = minY; fish.vy = Math.abs(fish.vy); }
+            if (fish.y > maxY) { fish.y = maxY; fish.vy = -Math.abs(fish.vy); }
+            return;
+        }
         // Calculate distance to shark
         const deltaX = fish.x - sharkWorldX;
         const deltaY = fish.y - sharkWorldY;
@@ -928,65 +1017,128 @@ function drawSeaweed() {
 }
 
 // Function to draw fish
-function drawFish() {
+function drawFish(type = 'normal') {
     const dims = getGameDimensions();
-    
+    // First pass: draw green fish (type: 'green')
     fishPieces.forEach(fish => {
-        // Calculate fish position relative to world offset
-        const drawX = fish.x + world.offsetX;
-        const drawY = fish.y + world.offsetY;
-        
-        // Only draw if on screen (with some margin)
-        if (drawX > -50 && drawX < dims.width + 50 && drawY > -50 && drawY < dims.height + 50) {
-            // Save context for rotation
-            ctx.save();
-            
-            // Move to fish center
-            ctx.translate(drawX, drawY);
-            
-            // Calculate fish facing direction based on velocity, but only if moving significantly
-            const speed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy);
-            if (speed > 0.1) { // Only rotate if moving fast enough
-                // Store the current angle for smoother transitions
-                if (!fish.currentAngle) fish.currentAngle = 0;
-                
-                const targetAngle = Math.atan2(fish.vy, fish.vx);
-                // Smoothly interpolate to the new angle to avoid jittery rotation
-                fish.currentAngle = fish.currentAngle * 0.9 + targetAngle * 0.1;
-                ctx.rotate(fish.currentAngle);
-            } else if (fish.currentAngle) {
-                // When nearly stopped, maintain last rotation
-                ctx.rotate(fish.currentAngle);
+        if (fish.type === type && fish.type === 'green') {
+            // Calculate fish position relative to world offset
+            const drawX = fish.x + world.offsetX;
+            const drawY = fish.y + world.offsetY;
+
+            // Only draw if on screen (with some margin)
+            if (drawX > -50 && drawX < dims.width + 50 && drawY > -50 && drawY < dims.height + 50) {
+                // Save context for rotation
+                ctx.save();
+
+                // Move to fish center
+                ctx.translate(drawX, drawY);
+
+                // Calculate fish facing direction based on velocity, but only if moving significantly
+                const speed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy);
+                if (speed > 0.1) { // Only rotate if moving fast enough
+                    // Store the current angle for smoother transitions
+                    if (!fish.currentAngle) fish.currentAngle = 0;
+
+                    const targetAngle = Math.atan2(fish.vy, fish.vx);
+                    // Smoothly interpolate to the new angle to avoid jittery rotation
+                    fish.currentAngle = fish.currentAngle * 0.9 + targetAngle * 0.1;
+                    ctx.rotate(fish.currentAngle);
+                } else if (fish.currentAngle) {
+                    // When nearly stopped, maintain last rotation
+                    ctx.rotate(fish.currentAngle);
+                }
+
+                // Draw fish body (simple oval)
+                ctx.fillStyle = fish.color;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, fish.size, fish.size * 0.6, 0, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Draw fish tail
+                ctx.fillStyle = fish.color;
+                ctx.beginPath();
+                ctx.moveTo(-fish.size, 0);
+                ctx.lineTo(-fish.size * 1.5, -fish.size * 0.4);
+                ctx.lineTo(-fish.size * 1.5, fish.size * 0.4);
+                ctx.closePath();
+                ctx.fill();
+
+                // Draw fish eye
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(fish.size * 0.3, -fish.size * 0.0, fish.size * 0.2, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Draw fish pupil
+                ctx.fillStyle = 'pink';
+                ctx.beginPath();
+                ctx.arc(fish.size * 0.3, -fish.size * 0.0, fish.size * 0.1, 0, 2 * Math.PI);
+                ctx.fill();
+
+                ctx.restore();
             }
-            
-            // Draw fish body (simple oval)
-            ctx.fillStyle = fish.color;
-            ctx.beginPath();
-            ctx.ellipse(0, 0, fish.size, fish.size * 0.6, 0, 0, 2 * Math.PI);
-            ctx.fill();
-            
-            // Draw fish tail
-            ctx.fillStyle = fish.color;
-            ctx.beginPath();
-            ctx.moveTo(-fish.size, 0);
-            ctx.lineTo(-fish.size * 1.5, -fish.size * 0.4);
-            ctx.lineTo(-fish.size * 1.5, fish.size * 0.4);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Draw fish eye
-            ctx.fillStyle = 'white';
-            ctx.beginPath();
-            ctx.arc(fish.size * 0.3, -fish.size * 0.2, fish.size * 0.2, 0, 2 * Math.PI);
-            ctx.fill();
-            
-            // Draw fish pupil
-            ctx.fillStyle = 'black';
-            ctx.beginPath();
-            ctx.arc(fish.size * 0.3, -fish.size * 0.2, fish.size * 0.1, 0, 2 * Math.PI);
-            ctx.fill();
-            
-            ctx.restore();
+        }
+    });
+     
+    // Second pass: draw all other fish
+    fishPieces.forEach(fish => {
+        if (fish.type === type && fish.type === 'normal') {
+            // Calculate fish position relative to world offset
+            const drawX = fish.x + world.offsetX;
+            const drawY = fish.y + world.offsetY;
+
+            // Only draw if on screen (with some margin)
+            if (drawX > -50 && drawX < dims.width + 50 && drawY > -50 && drawY < dims.height + 50) {
+                // Save context for rotation
+                ctx.save();
+
+                ctx.translate(drawX, drawY);
+
+                // Calculate fish facing direction based on velocity, but only if moving significantly
+                const speed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy);
+                if (speed > 0.1) { // Only rotate if moving fast enough
+                    // Store the current angle for smoother transitions
+                    if (!fish.currentAngle) fish.currentAngle = 0;
+
+                    const targetAngle = Math.atan2(fish.vy, fish.vx);
+                    // Smoothly interpolate to the new angle to avoid jittery rotation
+                    fish.currentAngle = fish.currentAngle * 0.9 + targetAngle * 0.1;
+                    ctx.rotate(fish.currentAngle);
+                } else if (fish.currentAngle) {
+                    // When nearly stopped, maintain last rotation
+                    ctx.rotate(fish.currentAngle);
+                }
+
+                // Draw fish body (simple oval)
+                ctx.fillStyle = fish.color;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, fish.size, fish.size * 0.6, 0, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Draw fish tail
+                ctx.fillStyle = fish.color;
+                ctx.beginPath();
+                ctx.moveTo(-fish.size, 0);
+                ctx.lineTo(-fish.size * 1.5, -fish.size * 0.4);
+                ctx.lineTo(-fish.size * 1.5, fish.size * 0.4);
+                ctx.closePath();
+                ctx.fill();
+
+                // Draw fish eye
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(fish.size * 0.3, -fish.size * 0.0, fish.size * 0.2, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Draw fish pupil
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(fish.size * 0.3, -fish.size * 0.0, fish.size * 0.1, 0, 2 * Math.PI);
+                ctx.fill();
+
+                ctx.restore();
+            }
         }
     });
 }
@@ -1060,8 +1212,9 @@ function gameLoop() {
         updateFishEating();
         updateBloodParticles();
         drawBackground();
+        drawFish('green'); // Draw green fish first for layering
         drawSeaweed();
-        drawFish();
+        drawFish('normal'); // Draw normal fish on top
         drawShark();
         drawDebugMouth(); // Optional debug visualization (controlled by debugSettings.showMouthPosition)
         drawMouseTarget();
