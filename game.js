@@ -672,8 +672,27 @@ function updateFish() {
     fishPieces.forEach(fish => {
         // Green lurker fish custom behavior
         if (fish.type === 'green') {
+            // Calculate shark's mouth position for targeting
+            const sharkCenterWorldX = (shark.x + shark.width/2) - world.offsetX;
+            const sharkCenterWorldY = (shark.y + shark.height/2) - world.offsetY;
+            
+            // Calculate shark's mouth position (same logic as eating function)
+            const angle = shark.direction * (Math.PI / 180);
+            const isSwimmingLeft = Math.abs(angle) > Math.PI / 2;
+            let mouthWorldX, mouthWorldY;
+            const mouthDistance = shark.width * 0.4;
+            
+            if (isSwimmingLeft) {
+                const flippedAngle = Math.PI - angle;
+                mouthWorldX = sharkCenterWorldX - Math.cos(flippedAngle) * mouthDistance;
+                mouthWorldY = sharkCenterWorldY + Math.sin(flippedAngle) * mouthDistance;
+            } else {
+                mouthWorldX = sharkCenterWorldX + Math.cos(angle) * mouthDistance;
+                mouthWorldY = sharkCenterWorldY + Math.sin(angle) * mouthDistance;
+            }
+            
             // States: hiding, emerging, returning
-            const sharkDist = Math.sqrt(Math.pow(fish.x - sharkWorldX, 2) + Math.pow(fish.y - sharkWorldY, 2));
+            const sharkDist = Math.sqrt(Math.pow(fish.x - sharkCenterWorldX, 2) + Math.pow(fish.y - sharkCenterWorldY, 2));
             if (fish.state === 'hiding') {
                 // Stay at home, minimal movement
                 fish.vx = 0;
@@ -687,9 +706,9 @@ function updateFish() {
                 fish.x = fish.homeX;
                 fish.y = fish.homeY;
             } else if (fish.state === 'emerging') {
-                // Move toward shark
-                const dx = sharkWorldX - fish.x;
-                const dy = sharkWorldY - fish.y;
+                // Move toward shark's mouth instead of center
+                const dx = mouthWorldX - fish.x;
+                const dy = mouthWorldY - fish.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist > 2) {
                     fish.vx = (dx / dist) * fish.speed * 0.7;
@@ -701,7 +720,7 @@ function updateFish() {
                 // If too far from home, return
                 fish.stateTimer++;
                 const homeDist = Math.sqrt(Math.pow(fish.x - fish.homeX, 2) + Math.pow(fish.y - fish.homeY, 2));
-                if (homeDist > 800) {   // Optionally include timeer e.g. fish.stateTimer > 80
+                if (homeDist > 800) {   // Optionally include timer e.g. || fish.stateTimer > 80
                     fish.state = 'returning';
                 }
             } else if (fish.state === 'returning') {
