@@ -881,10 +881,8 @@ function updateFishEating() {
         mouthWorldY = sharkCenterWorldY + Math.sin(angle) * mouthDistance; // Full distance, not scaled
     }
     
-    // Check for fish within eating range (scales with shark size)
+    // Check for fish within eating range
     const baseEatRadius = 30; // Base eating radius
-    const eatRadius = baseEatRadius * shark.growthFactor; // Scale with shark size
-    
     for (let i = fishPieces.length - 1; i >= 0; i--) {
         const fish = fishPieces[i];
         
@@ -892,6 +890,18 @@ function updateFishEating() {
         const deltaX = fish.x - mouthWorldX;
         const deltaY = fish.y - mouthWorldY;
         const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        let eatRadius = baseEatRadius;
+        if (fish.type === 'green') {
+            if (fish.state === 'returning') {
+                continue; // Can't eat returning green fish
+            }
+
+            eatRadius *= shark.growthFactor * 0.25; // Weakly scale with shark size
+        }
+        else {
+            eatRadius *= shark.growthFactor; // Scale with shark size
+        }
         
         if (distance < eatRadius) {
             // Fish has been eaten!
